@@ -24,5 +24,6 @@ if __name__ == '__main__':
 			print '\t%s: %s' % (k, v)
 		print '-' * 70
 		print ''
-	
+
+	print ''
 	print 'Total of %s passwords' % len(passwords)

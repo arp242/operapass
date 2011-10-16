@@ -15,38 +15,91 @@ import re
 import struct
 import sys
 
-import pyDes
+# Try to use m2crypto, this is *much* faster than the pure python pyDes, but
+# not as portable
+try:
+	import M2Crypto
+	fastdes = True
+except ImportError:
+	import pyDes
+	print "M2Crypto module not found, falling back to pyDes. Note this is *much* slower!"
+	fastdes = False
 
 def DecryptBlock(key, text):
 	# Static salt
 	salt = '\x83\x7D\xFC\x0F\x8E\xB3\xE8\x69\x73\xAF\xFF'
 
-	h = hashlib.md5(salt + key).digest()
+	# Master password notes:
+	#
+	# This *only* encrypts pasword fields, not username/etc.  fields.
+	# According to http://nontroppo.org/test/Op7/FAQ/opera-users.html#wand-security
+	# “if you do use a master password, the used password is a combination of the
+	# master password and a 128-byte random portion created at the same time.
+	# This random portion is stored outside wand.dat, also encrypted with the
+	# master password.”
+	# Random portion mentioned seems to be opcert6.dat
+	#
+	# According to http://my.opera.com/community/forums/topic.dml?id=132880
+	# “opcert6.dat contains all private keys you have created and the associated
+	# client certificates you have requested and installed. The private keys are
+	# protected by the security password. [...] A small block of data in the
+	# opcert6.dat file is also used when you secure the wand and mail passwords
+	# with the security password.”
+
+	t = hashlib.md5(salt + key).digest()
 	h2 = hashlib.md5(h + salt + key).digest()
 
 	key = h[:16] + h2[:8]
 	iv = h2[-8:]
 
-	return pyDes.triple_des(key, pyDes.CBC, iv).decrypt(text)
+	if fastdes:
+		return M2Crypto.EVP.Cipher(alg='des_ede3_cbc', key=key, iv=iv, op=0,
+			padding=0).update(text)
+	else:
+		print pyDes.triple_des(key, pyDes.CBC, iv).decrypt(text)
+		return pyDes.triple_des(key, pyDes.CBC, iv).decrypt(text)
+
+def GetPrintable(text):
+	printable = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~ \t\n\r\x0b\x0c'
+	return ''.join([ b for b in text if b in printable ])
 
 def GetData(pwfile):
+	fsize = os.stat(pwfile).st_size
+
 	with open(pwfile, 'rb') as fp:
-		# Header, mostly 0. On my system (FreeBSD/11.51) 0x3 is set to 0x06, 0x23 to 0x01
+		# Header, mostly 0. On my systems (FreeBSD&Win/11.51) 0x3 is set to 0x06, 0x23 to 0x01
+		# If offset 0x07 is set to 1, is seems to flag that a master pw is set
+		# TODO ^ Verify this, add detection
 		data = fp.read(36)
 
 		ret = []
 		data = fp.read(4)
 		while True:
 			if len(data) < 4:
-				return ret
+				# Nowhere near the end, assume "overlapping" of data
+				if fsize - fp.tell() > 30:
+					diff = 4 - len(data)
+					#fp.seek(fp.tell() - diff)
+					data = ('\x00' * diff) + data
+				else:
+					#print 'ret at line 57'
+					#print fp.tell()
+					return ret
 
-			size_block = struct.unpack('>I', data)[0]
-			size_key = struct.unpack('>I', fp.read(4))[0]
-			key = struct.unpack('>%ss' % size_key, fp.read(size_key))[0]
-			size_data = struct.unpack('>I', fp.read(4))[0]
-			data = struct.unpack('>%ss' % size_data, fp.read(size_data))[0]
+			try:
+				before = fp.tell()
+				size_block = struct.unpack('>I', data)[0]
+				size_key = struct.unpack('>I', fp.read(4))[0]
+				key = struct.unpack('>%ss' % size_key, fp.read(size_key))[0]
+				size_data = struct.unpack('>I', fp.read(4))[0]
+				#print hex(size_data)
+				data = struct.unpack('>%ss' % size_data, fp.read(size_data))[0]
 
-			ret.append([key, data])
+				ret.append([key, data])
+			except:
+				#print 'passing...', fp.tell()
+				fp.seek(before)
+				pass
 
 			# There often (but not always) seems to be some amount of zero-padding
 			# after this ... The value is often "odd" such as uneven numbers and I
@@ -55,8 +108,11 @@ def GetData(pwfile):
 			n = []
 			while True:
 				d = fp.read(1)
+				#print hex(ord(d)),
 
 				if not d:
+					#print 'ret at line 80'
+					#print fp.tell()
 					return ret
 				n.append(d)
 
@@ -65,9 +121,18 @@ def GetData(pwfile):
 					# to verify we've got the right number
 					pos = fp.tell()
 					check = fp.read(4)
+					if len(check) < 4:
+						return ret
 					fp.seek(pos)
-					if ord(check[-1:]) == 8:
+					#if (ord(check[3:4]) == 8):
+					#print '__', ord(check[0:1]), '__',
+					#print '__', ord(check[1:2]), '__',
+					#print '__', ord(check[2:3]), '__',
+					#print '__', ord(check[3:4]), '__'
+					if (ord(check[0:1]) == 0 and ord(check[1:2]) == 0
+							and ord(check[2:3]) == 0 and ord(check[3:4]) == 8):
 						data = ''.join(n[-4:])
+						#print 'BR %s, %s\n' % (fp.tell(), len(ret))
 						break
 
 def GetPasswordfile():
@@ -94,8 +159,6 @@ def GetPasswordfile():
 def GetPasswords(pwfile):
 	data = GetData(pwfile)
 
-	printable = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~ \t\n\r\x0b\x0c'
-
 	rows = []
 	key = None
 	row = []
@@ -103,7 +166,7 @@ def GetPasswords(pwfile):
 		block = DecryptBlock(key, d)
 		# Strip non-printable characters
 		# XXX This also strips non-ASCII characters
-		block = ''.join([ b for b in block if b in printable ])
+		block = GetPrintable(block)
 
 		# A new "row" is indicated by a timestamp
 		try:
@@ -135,7 +198,11 @@ def GetPasswords(pwfile):
 	if len(row) % 2 == 0:
 		del row[1]
 	rows.append(row)
-	return rows[1:]
+
+	rows = rows[1:]
+	#rows = sorted(rows, key=lambda r: r[0])
+
+	return rows
 
 def GetPasswordsDict(pwfile):
 	passwords = GetPasswords(pwfile)
