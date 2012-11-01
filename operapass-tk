@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright © 2011-2012, Martin Tournoij <martin@arp242>
+# Copyright © 2011-2012, Martin Tournoij <martin@arp242.net>
 # MIT licence applies: http://opensource.org/licenses/MIT
 # http://code.arp242.net/operapass
 #
