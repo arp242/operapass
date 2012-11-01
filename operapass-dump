@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 #
-# Marin Tournoij <martin@arp242>
-# Free for any use, there are no restrictions
+# Copyright © 2011-2012, Martin Tournoij <martin@arp242>
+# MIT licence applies: http://opensource.org/licenses/MIT
+# http://code.arp242.net/operapass
 #
 # This just "dumps" the data to the standard output
 #
@@ -18,12 +19,12 @@ if __name__ == '__main__':
 	passwords = operapass.GetPasswordsDict(pwfile)
 
 	for p in passwords:
-		print '-' * 70
-		print p['url']
+		print('-' * 70)
+		print(p['url'])
 		for k, v in p['fields'].iteritems():
-			print '\t%s: %s' % (k, v)
-		print '-' * 70
-		print ''
+			print('\t%s: %s' % (k, v))
+		print('-' * 70)
+		print('')
 
-	print ''
-	print 'Total of %s passwords' % len(passwords)
+	print('')
+	print('Total of %s passwords' % len(passwords))
