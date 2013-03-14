@@ -1,13 +1,16 @@
 #!/usr/bin/env python
+# encoding=utf-8
 #
-# Copyright © 2011-2012, Martin Tournoij <martin@arp242.net>
-# MIT licence applies: http://opensource.org/licenses/MIT
+# Copyright © 2011-2013, Martin Tournoij <martin@arp242.net>
+# See below for full copyright
+#
 # http://code.arp242.net/operapass
 #
 # This is, in part, based on the information found here:
 #   http://securityxploded.com/operapasswordsecrets.php
 #
 
+from __future__ import print_function
 import datetime
 import hashlib
 import os
@@ -20,13 +23,14 @@ import sys
 # not as portable
 try:
 	import M2Crypto
-	fastdes = True
+	_fastdes = True
 except ImportError:
 	#import pyDes
 	from . import pyDes
 	print('M2Crypto module not found, falling back to pyDes.')
 	print('Note this is *much* slower and may take up to a minute or more!')
-	fastdes = False
+	_fastdes = False
+
 
 def DecryptBlock(key, text):
 	# Static salt
@@ -34,7 +38,7 @@ def DecryptBlock(key, text):
 
 	# Master password notes:
 	#
-	# This *only* encrypts pasword fields, not username/etc.  fields.
+	# This *only* encrypts pasword fields, not username/etc. fields.
 	# According to http://nontroppo.org/test/Op7/FAQ/opera-users.html#wand-security
 	# "if you do use a master password, the used password is a combination of the
 	# master password and a 128-byte random portion created at the same time.
@@ -55,23 +59,46 @@ def DecryptBlock(key, text):
 	key = h[:16] + h2[:8]
 	iv = h2[-8:]
 
-	if fastdes:
+	if not (len(text) / 8.0 % 8).is_integer():
+		return '** INVALID **'
+
+	if _fastdes:
 		return M2Crypto.EVP.Cipher(alg='des_ede3_cbc', key=key, iv=iv, op=0,
 			padding=0).update(text)
 	else:
 		return pyDes.triple_des(key, pyDes.CBC, iv).decrypt(text)
 
-def GetPrintable(text):
-	# TODO: Exclude characters which are not printable, instead of the other way
-	# around!
-	printable = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~ \t\n\r\x0b\x0c'
-	return ''.join([ b for b in text if b in printable ])
+
+def RemoveNonprintable(text):
+	""" Remove non-printable characters.
+	Note we expect a bytes() as text and return a str()! """
+
+	rm = ''
+	for i in range(0, 32):
+		rm += chr(i)
+	rm += chr(127)
+
+	new = ''
+	if sys.version_info[0] >= 3:
+		rm = bytes(rm, 'utf-8')
+		for b in text:
+			if b not in rm:
+				new += chr(b)
+	else:
+		rm = bytes(rm)
+		for b in text:
+			if b not in rm:
+				new += b
+
+	return new
+
 
 def GetData(pwfile):
 	fsize = os.stat(pwfile).st_size
 
 	with open(pwfile, 'rb') as fp:
-		# Header, mostly 0. On my systems (FreeBSD&Win/11.51) 0x3 is set to 0x06, 0x23 to 0x01
+		# Header, mostly 0. On my systems (FreeBSD&Win/11.51) 0x3 is set to 0x06,
+		# 0x23 to 0x01
 		# If offset 0x07 is set to 1, is seems to flag that a master pw is set
 		# TODO ^ Verify this, add detection
 		data = fp.read(36)
@@ -79,15 +106,14 @@ def GetData(pwfile):
 		ret = []
 		data = fp.read(4)
 		while True:
+			#print(type(data), len(data), data)
 			if len(data) < 4:
 				# Nowhere near the end, assume "overlapping" of data
 				if fsize - fp.tell() > 30:
 					diff = 4 - len(data)
-					#fp.seek(fp.tell() - diff)
 					data = ('\x00' * diff) + data
 				else:
-					#print('ret at line 57')
-					#print(fp.tell())
+					#print('ret at line 57', fp.tell())
 					return ret
 
 			try:
@@ -101,7 +127,8 @@ def GetData(pwfile):
 
 				ret.append([key, data])
 			except:
-				#print('passing...', fp.tell())
+				raise
+				#print('passing...', fp.tell(), sys.exc_info()[1])
 				fp.seek(before)
 				pass
 
@@ -115,8 +142,7 @@ def GetData(pwfile):
 				#print(hex(ord(d)), end='')
 
 				if not d:
-					#print('ret at line 80')
-					#print(fp.tell())
+					#print('ret at line 80', fp.tell())
 					return ret
 				n.append(d)
 
@@ -135,11 +161,18 @@ def GetData(pwfile):
 					#print('__', ord(check[3:4]), '__')
 					if (ord(check[0:1]) == 0 and ord(check[1:2]) == 0
 							and ord(check[2:3]) == 0 and ord(check[3:4]) == 8):
-						
-						n = [ chr(ord(a)) for a in n ]
-						data = ''.join(n[-4:])
+
+						#n = [ chr(ord(a)) for a in n ]
+						#data = ''.join(n[-4:])
+						data = bytes()
+						try:
+							for i in range(0, 4):
+								data += n[i]
+						except IndexError:
+							pass
 						#print('BR %s, %s\n' % (fp.tell(), len(ret)))
 						break
+
 
 def GetPasswordfile():
 	if len(sys.argv) > 1:
@@ -162,6 +195,7 @@ def GetPasswordfile():
 
 	return pwfile
 
+
 def GetPasswords(pwfile):
 	data = GetData(pwfile)
 
@@ -170,7 +204,8 @@ def GetPasswords(pwfile):
 	row = []
 	for key, d in data:
 		block = DecryptBlock(key, d)
-		block = GetPrintable(block)
+		block = RemoveNonprintable(block)
+		#print(type(block), block)
 
 		# A new "row" is indicated by a timestamp
 		try:
@@ -204,7 +239,6 @@ def GetPasswords(pwfile):
 	if len(row) % 2 == 0:
 		del row[1]
 
-
 	if len(row) > 5:
 		rows.append(row[:-1])
 	rows = rows[1:]
@@ -221,6 +255,7 @@ def GetPasswords(pwfile):
 		i += 1
 
 	return rows
+
 
 def GetPasswordsDict(pwfile):
 	passwords = GetPasswords(pwfile)
@@ -243,3 +278,26 @@ def GetPasswordsDict(pwfile):
 		ret.append(dictrow)
 
 	return ret
+
+
+# The MIT License (MIT)
+#
+# Copyright © 2011-2013 Martin Tournoij
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to
+# deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# The software is provided "as is", without warranty of any kind, express or
+# implied, including but not limited to the warranties of merchantability,
+# fitness for a particular purpose and noninfringement. In no event shall the
+# authors or copyright holders be liable for any claim, damages or other
+# liability, whether in an action of contract, tort or otherwise, arising
+# from, out of or in connection with the software or the use or other dealings
+# in the software.

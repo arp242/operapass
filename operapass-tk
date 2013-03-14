@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+# encoding=utf-8
 #
-# Copyright © 2011-2012, Martin Tournoij <martin@arp242.net>
-# MIT licence applies: http://opensource.org/licenses/MIT
+# Copyright © 2011-2013, Martin Tournoij <martin@arp242.net>
+# See below for full copyright
+#
 # http://code.arp242.net/operapass
 #
 # Very basic TKinter GUI
@@ -9,10 +11,14 @@
 # TODO: Make this un-very-basic :)
 #
 
+from __future__ import print_function
 import sys
 
 try:
-	import Tkinter as tk
+	if sys.version_info[0] <= 2:
+		import Tkinter as tk
+	else:
+		import tkinter as tk
 except ImportError:
 	print("TKinter is required, but wasn't found.")
 	print('You can always use operapass-dump from the terminal.')
@@ -20,11 +26,13 @@ except ImportError:
 
 from operapass import operapass
 
+
 def Lambda(f, *args, **kwds):
-	return lambda event, f=f, args=args, kwds=kwds : f(*args, **kwds)
+	return lambda event, f=f, args=args, kwds=kwds: f(*args, **kwds)
+
 
 def TkPager(root, output):
-	root.wm_title('operapass 1.0 -- Press ESC to exit.')
+	root.wm_title('operapass 1.2 -- Press ESC to exit.')
 	root.geometry('800x460')
 	root.bind('<Escape>', Lambda(root.quit))
 
@@ -45,6 +53,7 @@ def TkPager(root, output):
 
 	return (root)
 
+
 if __name__ == '__main__':
 	pwfile = operapass.GetPasswordfile()
 	passwords = operapass.GetPasswordsDict(pwfile)
@@ -54,7 +63,7 @@ if __name__ == '__main__':
 		info += '-' * 70
 		info += '\n'
 		info += p['url'] + '\n'
-		for k, v in p['fields'].iteritems():
+		for k, v in p['fields'].items():
 			info += '\t%s: %s\n' % (k, v)
 		info += '-' * 70
 		info += '\n\n'
@@ -62,3 +71,26 @@ if __name__ == '__main__':
 	root = tk.Tk()
 	root = TkPager(root, info)
 	root.mainloop()
+
+
+# The MIT License (MIT)
+#
+# Copyright © 2011-2013 Martin Tournoij
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to
+# deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# The software is provided "as is", without warranty of any kind, express or
+# implied, including but not limited to the warranties of merchantability,
+# fitness for a particular purpose and noninfringement. In no event shall the
+# authors or copyright holders be liable for any claim, damages or other
+# liability, whether in an action of contract, tort or otherwise, arising
+# from, out of or in connection with the software or the use or other dealings
+# in the software.
