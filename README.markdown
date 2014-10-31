@@ -26,7 +26,7 @@ available for Python 3 yet.
 
 Credits
 =======
-Copyright © 2011-2013, Martin Tournoij <[martin@arp242.net][2]>
+Copyright © 2011-2014, Martin Tournoij <[martin@arp242.net][2]>
 MIT licence applies: http://opensource.org/licenses/MIT  
 
 The Opera wand format is described here:  
@@ -37,17 +37,21 @@ operpass also includes pyDes from http://twhiteman.netfirms.com/des.html
 
 ChangeLog
 =========
-Version 1.2, 20130313
+Version 1.3, 2014-11-01
+-----------------------
+- Detect if a master password is set
+
+Version 1.2, 2013-03-13
 ---------------------
 - Python 3 didn’t always work, fix that
 - Windows binaries
 - A few minor bugfixes/cleanup
 
-Version 1.1, 20121101
+Version 1.1, 2012-11-01
 ---------------------
 - Work with both Python 2 & 3
 
-Version 1.0, 20111004
+Version 1.0, 2011-10-04
 ---------------------
 - Initial release
 

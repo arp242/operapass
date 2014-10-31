@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding=utf-8
 #
-# Copyright © 2011-2013, Martin Tournoij <martin@arp242.net>
+# Copyright © 2011-2014, Martin Tournoij <martin@arp242.net>
 # See below for full copyright
 #
 # http://code.arp242.net/operapass
@@ -11,13 +11,7 @@
 #
 
 from __future__ import print_function
-import datetime
-import hashlib
-import os
-import platform
-import re
-import struct
-import sys
+import datetime, hashlib, os, platform, re, struct, sys
 
 # Try to use m2crypto, this is *much* faster than the pure python pyDes, but
 # not as portable
@@ -101,7 +95,16 @@ def GetData(pwfile):
 		# 0x23 to 0x01
 		# If offset 0x07 is set to 1, is seems to flag that a master pw is set
 		# TODO ^ Verify this, add detection
-		data = fp.read(36)
+		data = fp.read(7)
+		masterpw = fp.read(1)
+		data = fp.read(28) # 36
+
+		if masterpw == b'\x01':
+			print('It looks like you set a master password. Unfortunately, we cannot read this file')
+			print("You'll have to remove the master password, and run this tool again.")
+			print('You can re-set the master password afterwards.')
+			print('')
+			print('We will continue & try to read the file anyway for now...')
 
 		ret = []
 		data = fp.read(4)
@@ -282,7 +285,7 @@ def GetPasswordsDict(pwfile):
 
 # The MIT License (MIT)
 #
-# Copyright © 2011-2013 Martin Tournoij
+# Copyright © 2011-2014 Martin Tournoij
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to
